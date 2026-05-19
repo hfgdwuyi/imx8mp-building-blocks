@@ -1,0 +1,14 @@
+[Unit]
+Description=Building Block Message Bus Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/building-blocks/bin/bb-busd
+ExecStartPre=-/bin/rm -f /run/bb-bus.sock
+Restart=always
+RestartSec=2
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
