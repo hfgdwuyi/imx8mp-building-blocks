@@ -24,6 +24,7 @@ static int         g_blink_count  = 0;   // 0 = infinite
 static bb_block_t *g_block;
 
 static void *blink_thread(void *arg) {
+    (void)arg;
     int cycles = 0;
     while (g_blink_active && (g_blink_count == 0 || cycles < g_blink_count)) {
         bb_led_on(&g_led);
@@ -48,6 +49,7 @@ static void *blink_thread(void *arg) {
 }
 
 static void on_cmd(bb_block_t *block, const char *topic, const char *payload) {
+    (void)topic;
     const char *cmd = bb_json_get_string(payload, "cmd");
     if (!cmd) return;
 
@@ -120,6 +122,7 @@ static void on_cmd(bb_block_t *block, const char *topic, const char *payload) {
 }
 
 static int init(bb_block_t *block) {
+    (void)block;
     if (bb_led_open(&g_led, "heartbeat") < 0) {
         fprintf(stderr, "[bb-led] Failed to open heartbeat LED\n");
         return -1;
@@ -130,6 +133,7 @@ static int init(bb_block_t *block) {
 }
 
 static void stop(bb_block_t *block) {
+    (void)block;
     g_blink_active = 0;
     usleep(100000); // let blink thread finish
     bb_led_off(&g_led);

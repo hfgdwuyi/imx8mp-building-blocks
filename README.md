@@ -40,12 +40,18 @@ Modular, composable service framework for the **Forlinx OK8MPlus-C** embedded Li
 │   ├── bb_json.h/c         # Minimal JSON parser/writer (zero-alloc)
 │   ├── bb_bus.h/c          # Bus client (AF_UNIX socket IPC)
 │   ├── bb_block.h/c        # Block lifecycle state machine
-│   └── bb_hal_led.h/c      # LED HAL (sysfs abstraction)
+│   ├── bb_hal_led.h/c      # LED HAL (sysfs abstraction)
+│   ├── bb_hal_gpio.h/c     # GPIO HAL (sysfs export/value/edge)
+│   ├── bb_hal_i2c.h/c      # I2C HAL (/dev/i2c-X, ioctl)
+│   └── bb_hal_spi.h/c      # SPI HAL (/dev/spidevX.Y, ioctl)
 ├── blocks/
 │   └── bb-led/main.c       # LED controller block
 ├── tools/
 │   ├── bb-busd.c           # Message bus daemon
-│   └── bb-cli.c            # Command-line debug tool
+│   ├── bb-cli.c            # Command-line debug tool
+│   └── bb-hal-test.c       # HAL validation tool (I2C/SPI/GPIO)
+├── examples/
+│   └── led_example.c       # External app using HAL directly
 ├── deploy/
 │   ├── bb-busd.service     # systemd unit: bus daemon
 │   └── bb-led.service      # systemd unit: LED controller

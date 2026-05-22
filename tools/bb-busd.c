@@ -189,10 +189,8 @@ int main(void) {
             else {
                 // Client data
                 int cidx = events[i].data.u32;
-                if (events[i].events & (EPOLLHUP | EPOLLERR)) {
-                    remove_client(epfd, cidx);
-                    continue;
-                }
+                // Read before checking HUP: when client sends then closes,
+                // EPOLLIN and EPOLLHUP may fire together; we must drain data first.
                 if (events[i].events & EPOLLIN) {
                     client_t *c = &clients[cidx];
                     int avail = (int)sizeof(c->buf) - c->buf_len - 1;
@@ -218,6 +216,9 @@ int main(void) {
                         memmove(c->buf, start, c->buf_len);
                         c->buf[c->buf_len] = '\0';
                     }
+                }
+                if (events[i].events & (EPOLLHUP | EPOLLERR)) {
+                    remove_client(epfd, cidx);
                 }
             }
         }
