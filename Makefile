@@ -48,7 +48,7 @@ $(BIN_DIR)/bb-cli: tools/bb-cli.c $(OBJ_bb_json) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # ---- HAL test tool: needs i2c+spi+gpio ----
-$(BIN_DIR)/bb-hal-test: tools/bb-hal-test.c $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) $(OBJ_bb_hal_gpio) | $(BIN_DIR)
+$(BIN_DIR)/bb-hal-test: tools/bb-hal-test.c $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) $(OBJ_bb_hal_gpio) $(OBJ_bb_hal_led) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # ---- Compile individual library modules ----
