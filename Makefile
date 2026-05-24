@@ -21,10 +21,15 @@ OBJ_bb_hal_led  := $(OBJ_DIR)/bb_hal_led.o
 OBJ_bb_hal_gpio := $(OBJ_DIR)/bb_hal_gpio.o
 OBJ_bb_hal_i2c  := $(OBJ_DIR)/bb_hal_i2c.o
 OBJ_bb_hal_spi  := $(OBJ_DIR)/bb_hal_spi.o
+OBJ_bb_hal_pwm  := $(OBJ_DIR)/bb_hal_pwm.o
+OBJ_bb_hal_rtc  := $(OBJ_DIR)/bb_hal_rtc.o
+OBJ_bb_hal_wdg  := $(OBJ_DIR)/bb_hal_wdg.o
+OBJ_bb_hal_uart := $(OBJ_DIR)/bb_hal_uart.o
 
 # All libbb objects (for deploy)
 LIBBB_OBJS := $(OBJ_bb_block) $(OBJ_bb_bus) $(OBJ_bb_json) \
-              $(OBJ_bb_hal_led) $(OBJ_bb_hal_gpio) $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi)
+              $(OBJ_bb_hal_led) $(OBJ_bb_hal_gpio) $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) \
+              $(OBJ_bb_hal_pwm) $(OBJ_bb_hal_rtc) $(OBJ_bb_hal_wdg) $(OBJ_bb_hal_uart)
 
 # ---- Targets ----
 TARGETS := $(BIN_DIR)/bb-busd $(BIN_DIR)/bb-led $(BIN_DIR)/bb-cli $(BIN_DIR)/bb-hal-test
@@ -48,7 +53,7 @@ $(BIN_DIR)/bb-cli: tools/bb-cli.c $(OBJ_bb_json) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # ---- HAL test tool: needs i2c+spi+gpio ----
-$(BIN_DIR)/bb-hal-test: tools/bb-hal-test.c $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) $(OBJ_bb_hal_gpio) $(OBJ_bb_hal_led) | $(BIN_DIR)
+$(BIN_DIR)/bb-hal-test: tools/bb-hal-test.c $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) $(OBJ_bb_hal_gpio) $(OBJ_bb_hal_led) $(OBJ_bb_hal_pwm) $(OBJ_bb_hal_rtc) $(OBJ_bb_hal_wdg) $(OBJ_bb_hal_uart) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # ---- Compile individual library modules ----

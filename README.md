@@ -17,7 +17,8 @@ Modular, composable service framework for the **Forlinx OK8MPlus-C** embedded Li
 ├────────────────────────────────────────────────────┤
 │                 HAL (bb_hal_*.c)                    │
 │  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐   │
-│  │ LED  │ │ GPIO │ │ I2C  │ │ SPI  │ │ CAN  │   │
+│  │ LED  │ │ GPIO │ │ I2C  │ │ SPI  │ │ PWM  │   │
+│  │ RTC  │ │ WDG  │ │ UART │                         │
 │  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘   │
 ├────────────────────────────────────────────────────┤
 │           Linux Kernel (sysfs / dev / ioctl)        │
@@ -43,7 +44,11 @@ Modular, composable service framework for the **Forlinx OK8MPlus-C** embedded Li
 │   ├── bb_hal_led.h/c      # LED HAL (sysfs abstraction)
 │   ├── bb_hal_gpio.h/c     # GPIO HAL (sysfs export/value/edge)
 │   ├── bb_hal_i2c.h/c      # I2C HAL (/dev/i2c-X, ioctl)
-│   └── bb_hal_spi.h/c      # SPI HAL (/dev/spidevX.Y, ioctl)
+│   ├── bb_hal_spi.h/c      # SPI HAL (/dev/spidevX.Y, ioctl)
+│   ├── bb_hal_pwm.h/c      # PWM HAL (sysfs pwmchip)
+│   ├── bb_hal_rtc.h/c      # RTC HAL (/dev/rtcX, ioctl)
+│   ├── bb_hal_wdg.h/c      # Watchdog HAL (/dev/watchdogX)
+│   └── bb_hal_uart.h/c     # UART HAL (ttymxc, termios)
 ├── blocks/
 │   └── bb-led/main.c       # LED controller block
 ├── tools/
