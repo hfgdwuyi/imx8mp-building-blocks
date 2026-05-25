@@ -1,0 +1,21 @@
+[Unit]
+Description=Building Blocks - System Health Monitor
+Documentation=https://github.com/example/building-blocks
+Requires=bb-busd.service
+After=bb-busd.service
+# Start after all block services
+After=bb-led.service bb-avgate.service
+
+[Service]
+Type=simple
+ExecStart=/opt/building-blocks/bin/bb-health
+Restart=always
+RestartSec=10s
+WatchdogSec=60s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bb-health
+
+[Install]
+WantedBy=multi-user.target

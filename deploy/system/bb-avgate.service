@@ -1,0 +1,47 @@
+[Unit]
+Description=Building Blocks - AV Gateway
+Documentation=https://github.com/example/building-blocks
+Requires=bb-busd.service
+After=bb-busd.service network.target time-sync.target
+Wants=network.target time-sync.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/opt/building-blocks/bin/bb-avgate
+Restart=on-failure
+RestartSec=2s
+WatchdogSec=30s
+
+# Real-time scheduling for AV pipeline threads
+LimitRTTIME=infinity
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=50
+
+# Resource limits
+MemoryMax=512M
+MemoryHigh=384M
+CPUAffinity=0-3
+TasksMax=16
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bb-avgate
+
+# Crash handling
+FailureAction=bb-crash-report@bb-avgate.service
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ReadWritePaths=/dev/dri /dev/v4l /dev/mxc_vpu /var/log/persist /persist
+ReadOnlyPaths=/etc /usr
+DeviceAllow=/dev/dri rw
+DeviceAllow=/dev/v4l rw
+DeviceAllow=/dev/mxc_vpu rw
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Building Blocks - Weekly Update Check Timer
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

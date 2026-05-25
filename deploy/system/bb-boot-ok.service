@@ -1,0 +1,19 @@
+[Unit]
+Description=Building Blocks - Boot OK Handshake
+Documentation=https://github.com/example/building-blocks
+# Run after all critical services are confirmed up
+Requires=bb-busd.service
+After=bb-busd.service bb-health.service
+Wants=bb-health.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/building-blocks/bin/bb-boot-ok
+RemainAfterExit=no
+
+# Log boot success
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

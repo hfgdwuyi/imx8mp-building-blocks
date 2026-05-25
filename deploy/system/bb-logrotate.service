@@ -1,0 +1,7 @@
+[Unit]
+Description=Building Blocks - Daily Log Rotation
+
+[Service]
+Type=oneshot
+ExecStart=/opt/building-blocks/bin/bb-logrotate
+User=root

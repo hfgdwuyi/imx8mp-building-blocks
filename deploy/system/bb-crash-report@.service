@@ -1,0 +1,12 @@
+[Unit]
+Description=Building Blocks - Crash Report for %i
+Documentation=https://github.com/example/building-blocks
+
+[Service]
+Type=oneshot
+ExecStart=/opt/building-blocks/bin/bb-crash-report %i
+StandardOutput=journal
+StandardError=journal
+
+# Allow access to crash log directory
+ReadWritePaths=/persist/crash

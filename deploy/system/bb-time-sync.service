@@ -1,0 +1,18 @@
+[Unit]
+Description=Building Blocks - Time Synchronization Monitor
+Documentation=https://github.com/example/building-blocks
+After=time-sync.target systemd-timesyncd.service
+Wants=time-sync.target systemd-timesyncd.service
+
+[Service]
+Type=simple
+ExecStart=/opt/building-blocks/bin/bb-time-sync
+Restart=always
+RestartSec=30s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bb-time-sync
+
+[Install]
+WantedBy=multi-user.target

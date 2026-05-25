@@ -1,8 +1,9 @@
 #ifndef BB_HAL_GPIO_H
 #define BB_HAL_GPIO_H
 
-// GPIO abstraction over sysfs /sys/class/gpio/
-// For kernel < 5.10 where sysfs GPIO is still supported.
+// GPIO abstraction using Linux gpiochip character device (/dev/gpiochipX)
+// Compatible with kernel >= 5.10 (replaces deprecated sysfs GPIO).
+// Falls back to sysfs on kernels where /sys/class/gpio exists.
 
 typedef enum {
     BB_GPIO_IN  = 0,
@@ -17,9 +18,12 @@ typedef enum {
 } bb_gpio_edge_t;
 
 typedef struct {
-    int  num;           // GPIO number (global)
-    int  value_fd;      // fd for /sys/class/gpio/gpio<N>/value
-    int  exported;      // 1 if we exported this GPIO
+    int  num;           // Global GPIO number
+    int  chip_fd;       // fd for /dev/gpiochipX
+    int  line_fd;       // fd for requested line (from GPIO_V2_GET_LINE_IOCTL)
+    int  line_offset;   // offset within the chip
+    int  is_sysfs;      // 1 if using legacy sysfs, 0 for gpiochip
+    int  exported;      // 1 if exported (sysfs mode only)
 } bb_gpio_t;
 
 // Export and configure a GPIO pin. Returns 0 on success.
@@ -40,7 +44,7 @@ int  bb_gpio_set_edge(bb_gpio_t *gpio, bb_gpio_edge_t edge);
 // Wait for edge event (blocking poll on value_fd)
 int  bb_gpio_poll(bb_gpio_t *gpio, int timeout_ms);
 
-// Close and unexport
+// Close and release
 void bb_gpio_close(bb_gpio_t *gpio);
 
-#endif
+#endif // BB_HAL_GPIO_H

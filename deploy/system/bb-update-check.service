@@ -1,0 +1,7 @@
+[Unit]
+Description=Building Blocks - Weekly Update Check
+
+[Service]
+Type=oneshot
+ExecStart=/opt/building-blocks/bin/bb-update-check
+User=nobody

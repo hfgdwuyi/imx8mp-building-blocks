@@ -146,7 +146,7 @@ static void remove_client(int epfd, int idx) {
 
 int main(void) {
     signal(SIGTERM, (void(*)(int))cleanup);
-    signal(SIGINT,  cleanup);
+    signal(SIGINT,  (void(*)(int))cleanup);
 
     unlink(SOCKET_PATH);
 

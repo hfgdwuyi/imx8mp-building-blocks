@@ -1,0 +1,42 @@
+# Building Blocks - Default U-Boot Environment
+# Written to eMMC at provisioning time, managed by fw_setenv at runtime.
+
+boot_targets   mmc0
+boot_slot      a
+boot_ok        0
+boot_attempt   3
+boot_limit     3
+boot_alt_slot  b
+recovery_mode  0
+
+# Kernel and device tree filenames
+fdt_file       imx8mp-ok8mplus-c.dtb
+kernel_image   Image
+
+# Firmware versions (updated by update tooling)
+uboot_version  2023.04-lf_v2023.04+bb
+atf_version    lf_v2.8
+scfw_version   1.15.0
+
+# Console
+stdin          serial
+stdout         serial
+stderr         serial
+
+# Network (optional, for netboot recovery)
+ethaddr        00:00:00:00:00:00   # Overridden by manufacturing data
+serverip       192.168.0.1
+ipaddr         192.168.0.100
+
+# Partition layout (informational, not used by boot logic)
+# mmcblk0p1  uboot        8M
+# mmcblk0p2  uboot-env-a  8K
+# mmcblk0p3  uboot-env-b  8K
+# mmcblk0p4  boot-a       64M
+# mmcblk0p5  boot-b       64M
+# mmcblk0p6  rootfs-a     1536M
+# mmcblk0p7  rootfs-b     1536M
+# mmcblk0p8  recovery     512M
+# mmcblk0p9  persist      256M
+# mmcblk0p10 manufacturing 1M
+# mmcblk0p11 log           512M

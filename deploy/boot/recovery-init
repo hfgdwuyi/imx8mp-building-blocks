@@ -1,0 +1,59 @@
+#!/bin/sh
+# Building Blocks - Recovery Mode Init
+# Runs as PID 1 in the recovery rootfs (busybox-init, not systemd)
+
+echo "=== Building Blocks Recovery ==="
+
+# Mount essential filesystems
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs dev /dev
+mount -t tmpfs tmpfs /tmp
+mount -t tmpfs tmpfs /run
+
+# Mount persistent storage
+mkdir -p /persist /var/log /mnt/usb
+mount /dev/mmcblk0p9 /persist 2>/dev/null
+mount /dev/mmcblk0p11 /var/log 2>/dev/null
+
+# Export crash logs from last fatal failure to console
+if [ -f /persist/crash/latest ]; then
+    echo ""
+    echo "=== Last crash log ==="
+    cat /persist/crash/latest
+    echo "=== End crash log ==="
+    echo ""
+fi
+
+# Attempt USB mount for offline log export or re-imaging
+if [ -b /dev/sda1 ]; then
+    mount /dev/sda1 /mnt/usb 2>/dev/null
+    if [ $? -eq 0 ]; then
+        echo "USB storage mounted at /mnt/usb"
+    fi
+fi
+
+# Bring up loopback network
+ifconfig lo 127.0.0.1 up
+
+# Attempt ethernet for network recovery
+ifconfig eth0 up 2>/dev/null
+udhcpc -i eth0 -t 5 -n 2>/dev/null
+
+# Start recovery shell on debug UART
+echo ""
+echo "Recovery shell available on ttymxc0 (115200 8N1)"
+echo "Commands: bb-recovery, fw_setenv, parted, fsck, wget"
+echo ""
+
+setsid /sbin/getty -L ttymxc0 115200 vt100 &
+
+# Optionally start telnet for remote recovery
+if ifconfig eth0 2>/dev/null | grep -q "inet "; then
+    IP=$(ifconfig eth0 2>/dev/null | grep "inet " | awk '{print $2}')
+    echo "Telnet available at ${IP}:23"
+    telnetd -l /bin/sh &
+fi
+
+# Run recovery agent
+exec /usr/bin/bb-recovery --interactive

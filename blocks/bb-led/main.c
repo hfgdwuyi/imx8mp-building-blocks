@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <time.h>
+#include "../../libbb/bb_board.h"
 #include "../../libbb/bb_block.h"
 #include "../../libbb/bb_hal_led.h"
 #include "../../libbb/bb_json.h"
@@ -123,8 +124,8 @@ static void on_cmd(bb_block_t *block, const char *topic, const char *payload) {
 
 static int init(bb_block_t *block) {
     (void)block;
-    if (bb_led_open(&g_led, "heartbeat") < 0) {
-        fprintf(stderr, "[bb-led] Failed to open heartbeat LED\n");
+    if (bb_led_open(&g_led, BB_LED_HEARTBEAT) < 0) {
+        fprintf(stderr, "[bb-led] Failed to open LED '%s'\n", BB_LED_HEARTBEAT);
         return -1;
     }
     bb_led_set_trigger(&g_led, "none");
