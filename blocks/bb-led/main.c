@@ -11,10 +11,10 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <time.h>
-#include "../../libbb/bb_board.h"
-#include "../../libbb/bb_block.h"
-#include "../../libbb/bb_hal_led.h"
-#include "../../libbb/bb_json.h"
+#include "bb_board.h"
+#include "bb_block.h"
+#include "bb_hal_led.h"
+#include "bb_json.h"
 
 static bb_led_t    g_led;
 static pthread_t   g_blink_thread;

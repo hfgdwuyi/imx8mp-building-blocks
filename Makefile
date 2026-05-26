@@ -6,12 +6,16 @@
 #       build/obj/bb_hal_led.o -static -lpthread
 
 CC       ?= gcc
-CFLAGS   := -std=c11 -Wall -Wextra -Os -D_GNU_SOURCE -Ilibbb -Itools/bb-update
+CFLAGS   := -std=c11 -Wall -Wextra -Os -D_GNU_SOURCE \
+            -Ilibbb -Ihal -Imiddleware -Iservices -Itools/bb-update
 LDFLAGS  := -static -lpthread
 
 BUILD_DIR := build
 BIN_DIR   := $(BUILD_DIR)/bin
 OBJ_DIR   := $(BUILD_DIR)/obj
+
+# VPATH: search source files in these directories
+VPATH := libbb:hal:middleware:services:tools:tools/bb-update:blocks/bb-led
 
 # ---- Individual module objects (link what you need) ----
 OBJ_bb_block    := $(OBJ_DIR)/bb_block.o
@@ -33,6 +37,7 @@ OBJ_bb_hal_uart := $(OBJ_DIR)/bb_hal_uart.o
 OBJ_bb_update   := $(OBJ_DIR)/bb_update.o
 OBJ_bb_hal_display  := $(OBJ_DIR)/bb_hal_display.o
 OBJ_bb_hal_audio    := $(OBJ_DIR)/bb_hal_audio.o
+OBJ_bb_audio_stream := $(OBJ_DIR)/bb_audio_stream.o
 
 # All libbb objects (for deploy)
 LIBBB_OBJS := $(OBJ_bb_block) $(OBJ_bb_bus) $(OBJ_bb_json) \
@@ -40,16 +45,14 @@ LIBBB_OBJS := $(OBJ_bb_block) $(OBJ_bb_bus) $(OBJ_bb_json) \
               $(OBJ_bb_persist) $(OBJ_bb_recovery) \
               $(OBJ_bb_hal_led) $(OBJ_bb_hal_gpio) $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) \
               $(OBJ_bb_hal_pwm) $(OBJ_bb_hal_rtc) $(OBJ_bb_hal_wdg) $(OBJ_bb_hal_uart) \
-              $(OBJ_bb_hal_display) $(OBJ_bb_hal_audio)
-
-# All new core objects (thread, pool, log, persist, recovery)
-CORE_OBJS := $(OBJ_bb_thread) $(OBJ_bb_pool) $(OBJ_bb_log) $(OBJ_bb_persist) $(OBJ_bb_recovery)
+              $(OBJ_bb_hal_display) $(OBJ_bb_hal_audio) $(OBJ_bb_audio_stream)
 
 # ---- Targets ----
 TARGETS := $(BIN_DIR)/bb-busd $(BIN_DIR)/bb-led $(BIN_DIR)/bb-cli $(BIN_DIR)/bb-hal-test \
            $(BIN_DIR)/bb-update \
            $(BIN_DIR)/bb-display-test \
-           $(BIN_DIR)/bb-audio-test
+           $(BIN_DIR)/bb-audio-test \
+           $(BIN_DIR)/bb-audio-loopback
 
 .PHONY: all clean deploy cross bbu
 
@@ -58,7 +61,7 @@ all: $(TARGETS)
 	@ls -lh $(BIN_DIR)/
 
 # ---- Bus daemon (standalone, no libbb) ----
-$(BIN_DIR)/bb-busd: tools/bb-busd.c | $(BIN_DIR)
+$(BIN_DIR)/bb-busd: services/bb-busd.c | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 # ---- LED block: links block+bus+json+log+hal_led ----
@@ -85,12 +88,12 @@ $(BIN_DIR)/bb-display-test: tools/bb-display-test.c $(OBJ_bb_hal_display) | $(BI
 $(BIN_DIR)/bb-audio-test: tools/bb-audio-test.c $(OBJ_bb_hal_audio) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lm
 
-# ---- Compile individual library modules ----
-$(OBJ_DIR)/%.o: libbb/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+# ---- Audio loopback: needs stream + HAL + pool + thread + log ----
+$(BIN_DIR)/bb-audio-loopback: tools/bb-audio-loopback.c $(OBJ_bb_audio_stream) $(OBJ_bb_hal_audio) $(OBJ_bb_pool) $(OBJ_bb_thread) $(OBJ_bb_log) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lm
 
-# ---- Compile update module (separate include path) ----
-$(OBJ_DIR)/bb_update.o: tools/bb-update/bb_update.c | $(OBJ_DIR)
+# ---- Compile individual library modules (searched via VPATH) ----
+$(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # ---- Directories ----
@@ -107,7 +110,7 @@ deploy: all
 	scp -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa \
 		$(LIBBB_OBJS) root@192.168.0.232:/opt/building-blocks/obj/
 	scp -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa \
-		libbb/*.h root@192.168.0.232:/opt/building-blocks/include/
+		libbb/*.h hal/*.h middleware/*.h root@192.168.0.232:/opt/building-blocks/include/
 	scp -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa \
 		deploy/*.service root@192.168.0.232:/etc/systemd/system/
 	scp -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa \

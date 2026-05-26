@@ -13,7 +13,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include "../libbb/bb_json.h"
+#include "bb_json.h"
 
 #define BUS_PATH "/run/bb-bus.sock"
 

@@ -1,5 +1,5 @@
 #include "bb_update.h"
-#include "../../libbb/bb_board.h"
+#include "bb_board.h"
 
 #include <errno.h>
 #include <fcntl.h>

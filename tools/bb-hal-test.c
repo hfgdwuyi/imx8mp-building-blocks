@@ -9,15 +9,15 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include "../libbb/bb_board.h"
-#include "../libbb/bb_hal_i2c.h"
-#include "../libbb/bb_hal_spi.h"
-#include "../libbb/bb_hal_gpio.h"
-#include "../libbb/bb_hal_led.h"
-#include "../libbb/bb_hal_pwm.h"
-#include "../libbb/bb_hal_rtc.h"
-#include "../libbb/bb_hal_wdg.h"
-#include "../libbb/bb_hal_uart.h"
+#include "bb_board.h"
+#include "bb_hal_i2c.h"
+#include "bb_hal_spi.h"
+#include "bb_hal_gpio.h"
+#include "bb_hal_led.h"
+#include "bb_hal_pwm.h"
+#include "bb_hal_rtc.h"
+#include "bb_hal_wdg.h"
+#include "bb_hal_uart.h"
 
 static int failures = 0;
 #define PASS() printf("  PASS\n")

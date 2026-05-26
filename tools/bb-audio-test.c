@@ -11,7 +11,7 @@
 #include <math.h>
 #include <poll.h>
 #include <errno.h>
-#include "../libbb/bb_hal_audio.h"
+#include "bb_hal_audio.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

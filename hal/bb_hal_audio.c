@@ -185,7 +185,9 @@ int bb_audio_open(bb_audio_t *a, int card, int dev, bb_audio_dir_t dir,
 	sw.tstamp_mode      = SNDRV_PCM_TSTAMP_ENABLE;
 	sw.period_step      = 1;
 	sw.avail_min        = a->period_frames;
-	sw.start_threshold  = 1;   // auto-start on first read/write
+	// Capture: start immediately. Playback: buffer 2 periods before
+	// auto-start to prevent underrun when data source has pipeline latency.
+	sw.start_threshold  = (dir == BB_AUDIO_CAPTURE) ? 1 : a->period_frames * 2;
 	sw.stop_threshold   = a->buffer_frames;
 	sw.silence_threshold = 0;
 	sw.silence_size     = 0;

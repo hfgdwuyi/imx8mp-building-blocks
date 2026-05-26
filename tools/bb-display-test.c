@@ -11,7 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
-#include "../libbb/bb_hal_display.h"
+#include "bb_hal_display.h"
 
 // XRGB8888 color constants
 #define C_WHITE   0xFFFFFFFF
