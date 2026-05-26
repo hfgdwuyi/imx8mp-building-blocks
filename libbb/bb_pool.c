@@ -70,12 +70,24 @@ void bb_pool_destroy(bb_frame_pool_t *p)
 
 bb_frame_t *bb_pool_sp_acquire(bb_frame_pool_t *p)
 {
-    int idx = atomic_load(&p->write_idx) % p->count;
-    return &p->frames[idx];
+    int w = atomic_load(&p->write_idx);
+    int r = atomic_load(&p->read_idx);
+    // Buffer full: consumer is falling behind, drop frame rather than overwrite
+    if (w - r >= p->count)
+        return NULL;
+
+    int idx = w % p->count;
+    bb_frame_t *f = &p->frames[idx];
+    // CAS guards against re-entrant acquire (signal handler, etc.)
+    int expected = 0;
+    if (!atomic_compare_exchange_strong(&f->refcount, &expected, 1))
+        return NULL;
+    return f;
 }
 
 void bb_pool_sp_commit(bb_frame_pool_t *p)
 {
+    // Signal consumer: one more frame is ready
     atomic_fetch_add(&p->write_idx, 1);
 }
 
@@ -83,11 +95,14 @@ bb_frame_t *bb_pool_sp_dequeue(bb_frame_pool_t *p)
 {
     int w = atomic_load(&p->write_idx);
     int r = atomic_load(&p->read_idx);
-    if (r >= w) return NULL;  // empty
+    if (r >= w) return NULL;
 
     int idx = r % p->count;
+    bb_frame_t *f = &p->frames[idx];
+    // Ensure producer has committed this slot
+    if (atomic_load(&f->refcount) < 1) return NULL;
     atomic_fetch_add(&p->read_idx, 1);
-    return &p->frames[idx];
+    return f;
 }
 
 void bb_pool_sp_release(bb_frame_t *f)
@@ -110,9 +125,9 @@ bb_frame_t *bb_pool_mp_acquire(bb_frame_pool_t *p)
 
 void bb_pool_mp_enqueue(bb_frame_pool_t *p, bb_frame_t *f)
 {
-    (void)f;
+    // Mark frame ready for consumer: refcount 0→1 (acquire) → 2 (ready)
+    atomic_fetch_add(&f->refcount, 1);
     pthread_mutex_lock(&p->mp_mutex);
-    // Frame is already acquired (refcount >= 1), just signal consumer
     atomic_fetch_add(&p->mp_pending, 1);
     pthread_cond_signal(&p->mp_cond);
     pthread_mutex_unlock(&p->mp_mutex);
