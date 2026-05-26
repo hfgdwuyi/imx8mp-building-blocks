@@ -31,20 +31,23 @@ OBJ_bb_hal_rtc  := $(OBJ_DIR)/bb_hal_rtc.o
 OBJ_bb_hal_wdg  := $(OBJ_DIR)/bb_hal_wdg.o
 OBJ_bb_hal_uart := $(OBJ_DIR)/bb_hal_uart.o
 OBJ_bb_update   := $(OBJ_DIR)/bb_update.o
+OBJ_bb_hal_display  := $(OBJ_DIR)/bb_hal_display.o
 
 # All libbb objects (for deploy)
 LIBBB_OBJS := $(OBJ_bb_block) $(OBJ_bb_bus) $(OBJ_bb_json) \
               $(OBJ_bb_thread) $(OBJ_bb_pool) $(OBJ_bb_log) \
               $(OBJ_bb_persist) $(OBJ_bb_recovery) \
               $(OBJ_bb_hal_led) $(OBJ_bb_hal_gpio) $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) \
-              $(OBJ_bb_hal_pwm) $(OBJ_bb_hal_rtc) $(OBJ_bb_hal_wdg) $(OBJ_bb_hal_uart)
+              $(OBJ_bb_hal_pwm) $(OBJ_bb_hal_rtc) $(OBJ_bb_hal_wdg) $(OBJ_bb_hal_uart) \
+              $(OBJ_bb_hal_display)
 
 # All new core objects (thread, pool, log, persist, recovery)
 CORE_OBJS := $(OBJ_bb_thread) $(OBJ_bb_pool) $(OBJ_bb_log) $(OBJ_bb_persist) $(OBJ_bb_recovery)
 
 # ---- Targets ----
 TARGETS := $(BIN_DIR)/bb-busd $(BIN_DIR)/bb-led $(BIN_DIR)/bb-cli $(BIN_DIR)/bb-hal-test \
-           $(BIN_DIR)/bb-update
+           $(BIN_DIR)/bb-update \
+           $(BIN_DIR)/bb-display-test
 
 .PHONY: all clean deploy cross bbu
 
@@ -71,6 +74,10 @@ $(BIN_DIR)/bb-hal-test: tools/bb-hal-test.c $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) 
 # ---- Update tool: update logic + persist + recovery ----
 $(BIN_DIR)/bb-update: tools/bb-update/main.c $(OBJ_bb_update) $(OBJ_bb_persist) $(OBJ_bb_recovery) $(OBJ_bb_json) $(OBJ_bb_log) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# ---- Display test: needs display HAL only ----
+$(BIN_DIR)/bb-display-test: tools/bb-display-test.c $(OBJ_bb_hal_display) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lm
 
 # ---- Compile individual library modules ----
 $(OBJ_DIR)/%.o: libbb/%.c | $(OBJ_DIR)
