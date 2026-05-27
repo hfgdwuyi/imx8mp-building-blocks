@@ -162,8 +162,10 @@ static int gpio_v2_open(bb_gpio_t *gpio, int num, bb_gpio_direction_t dir)
     gpio->chip_fd = chip_fd;
     gpio->line_fd = req.fd;
     gpio->line_offset = offset;
+    gpio->chip_num = chip;
     gpio->is_sysfs = 0;
     gpio->exported = 0;
+    gpio->direction = dir;
 
     return 0;
 }
@@ -196,6 +198,56 @@ static void gpio_v2_close(bb_gpio_t *gpio)
 {
     if (gpio->line_fd >= 0) { close(gpio->line_fd); gpio->line_fd = -1; }
     if (gpio->chip_fd >= 0) { close(gpio->chip_fd); gpio->chip_fd = -1; }
+}
+
+static int gpio_v2_set_edge(bb_gpio_t *gpio, bb_gpio_edge_t edge)
+{
+    // Close the existing line request
+    if (gpio->line_fd >= 0) {
+        close(gpio->line_fd);
+        gpio->line_fd = -1;
+    }
+
+    // Re-open the chip fd if needed
+    int chip_fd = gpio->chip_fd;
+    if (chip_fd < 0) {
+        char dev[32];
+        snprintf(dev, sizeof(dev), "/dev/gpiochip%d", gpio->chip_num);
+        chip_fd = open(dev, O_RDONLY | O_CLOEXEC);
+        if (chip_fd < 0) return -1;
+        gpio->chip_fd = chip_fd;
+    }
+
+    // Build line request with edge flags
+    struct gpio_v2_line_request req;
+    memset(&req, 0, sizeof(req));
+    req.offsets[0] = gpio->line_offset;
+    req.num_lines = 1;
+    snprintf(req.consumer, sizeof(req.consumer), "bb-hal-gpio");
+
+    // Direction
+    if (gpio->direction == BB_GPIO_OUT) {
+        req.config.flags = GPIO_V2_LINE_FLAG_OUTPUT;
+    } else {
+        req.config.flags = GPIO_V2_LINE_FLAG_INPUT;
+    }
+
+    // Edge detection (input only)
+    if (edge != BB_GPIO_EDGE_NONE) {
+        req.config.flags |= GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME;
+        if (edge == BB_GPIO_EDGE_RISING)
+            req.config.flags |= GPIO_V2_LINE_FLAG_EDGE_RISING;
+        else if (edge == BB_GPIO_EDGE_FALLING)
+            req.config.flags |= GPIO_V2_LINE_FLAG_EDGE_FALLING;
+        else if (edge == BB_GPIO_EDGE_BOTH)
+            req.config.flags |= GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING;
+    }
+
+    if (ioctl(chip_fd, GPIO_V2_GET_LINE_IOCTL, &req) < 0)
+        return -1;
+
+    gpio->line_fd = req.fd;
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,11 +299,7 @@ int bb_gpio_set_edge(bb_gpio_t *gpio, bb_gpio_edge_t edge)
         fclose(f);
         return 0;
     }
-    // gpiochip v2: edge detection requires re-requesting with
-    // GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME etc.
-    // Not implemented in this minimal version
-    (void)edge;
-    return -1;
+    return gpio_v2_set_edge(gpio, edge);
 }
 
 int bb_gpio_poll(bb_gpio_t *gpio, int timeout_ms)

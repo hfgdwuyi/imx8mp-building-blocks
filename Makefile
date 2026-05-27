@@ -9,6 +9,9 @@ CC       ?= gcc
 CFLAGS   := -std=c11 -Wall -Wextra -Os -D_GNU_SOURCE \
             -Ilibbb -Ihal -Imiddleware -Iservices -Itools/bb-update
 LDFLAGS  := -static -lpthread
+# Automatically detect OpenSSL for bb-update signature support
+HAS_CRYPTO := $(shell $(CC) -lcrypto -x c /dev/null -o /dev/null 2>/dev/null && echo "-lcrypto")
+LDFLAGS_UPDATE := $(LDFLAGS) $(HAS_CRYPTO)
 
 BUILD_DIR := build
 BIN_DIR   := $(BUILD_DIR)/bin
@@ -52,7 +55,8 @@ TARGETS := $(BIN_DIR)/bb-busd $(BIN_DIR)/bb-led $(BIN_DIR)/bb-cli $(BIN_DIR)/bb-
            $(BIN_DIR)/bb-update \
            $(BIN_DIR)/bb-display-test \
            $(BIN_DIR)/bb-audio-test \
-           $(BIN_DIR)/bb-audio-loopback
+           $(BIN_DIR)/bb-audio-loopback \
+           $(BIN_DIR)/bb-boot-ok
 
 .PHONY: all clean deploy cross bbu
 
@@ -78,6 +82,10 @@ $(BIN_DIR)/bb-hal-test: tools/bb-hal-test.c $(OBJ_bb_hal_i2c) $(OBJ_bb_hal_spi) 
 
 # ---- Update tool: update logic + persist + recovery ----
 $(BIN_DIR)/bb-update: tools/bb-update/main.c $(OBJ_bb_update) $(OBJ_bb_persist) $(OBJ_bb_recovery) $(OBJ_bb_json) $(OBJ_bb_log) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS_UPDATE)
+
+# ---- Boot OK handshake: persist + uptime → boot log ----
+$(BIN_DIR)/bb-boot-ok: tools/bb-boot-ok.c $(OBJ_bb_persist) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # ---- Display test: needs display HAL only ----

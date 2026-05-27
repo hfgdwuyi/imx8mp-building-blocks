@@ -28,7 +28,7 @@
 #define BB_STR(x)  BB_STR_(x)
 
 static bb_mfg_data_t g_mfg;
-static int g_mfg_loaded = 0;
+static int g_mfg_loaded = 0;   // 0 = not loaded, 1 = loaded OK, -1 = tried and failed
 
 static int ensure_mounted(const char *device, const char *target, const char *fstype)
 {
@@ -252,18 +252,28 @@ int bb_persist_update_log_read(bb_update_entry_t *entries, int max_entries)
 // ---------------------------------------------------------------------------
 int bb_mfg_read(bb_mfg_data_t *out)
 {
-    if (g_mfg_loaded) {
+    if (g_mfg_loaded == 1) {
         memcpy(out, &g_mfg, sizeof(*out));
         return 0;
     }
 
+    // If a previous attempt failed permanently, don't retry
+    if (g_mfg_loaded == -1)
+        return -1;
+
     int fd = open(MFG_DEVICE, O_RDONLY);
-    if (fd < 0) return -1;
+    if (fd < 0) {
+        g_mfg_loaded = -1;
+        return -1;
+    }
 
     ssize_t n = read(fd, out, sizeof(*out));
     close(fd);
 
-    if (n != sizeof(*out)) return -1;
+    if (n != sizeof(*out)) {
+        g_mfg_loaded = -1;
+        return -1;
+    }
 
     // Verify CRC32
     uint32_t crc = 0;
@@ -273,7 +283,10 @@ int bb_mfg_read(bb_mfg_data_t *out)
         for (int j = 0; j < 8; j++)
             crc = (crc >> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
     }
-    if (crc != out->crc32) return -1;
+    if (crc != out->crc32) {
+        g_mfg_loaded = -1;
+        return -1;
+    }
 
     memcpy(&g_mfg, out, sizeof(*out));
     g_mfg_loaded = 1;
@@ -282,18 +295,21 @@ int bb_mfg_read(bb_mfg_data_t *out)
 
 const char *bb_mfg_serial(void)
 {
-    if (!g_mfg_loaded) bb_mfg_read(&g_mfg);
+    if (g_mfg_loaded <= 0 && bb_mfg_read(&g_mfg) != 0)
+        return "";
     return g_mfg.serial;
 }
 
 const char *bb_mfg_hw_revision(void)
 {
-    if (!g_mfg_loaded) bb_mfg_read(&g_mfg);
+    if (g_mfg_loaded <= 0 && bb_mfg_read(&g_mfg) != 0)
+        return "";
     return g_mfg.hw_revision;
 }
 
 const char *bb_mfg_part_number(void)
 {
-    if (!g_mfg_loaded) bb_mfg_read(&g_mfg);
+    if (g_mfg_loaded <= 0 && bb_mfg_read(&g_mfg) != 0)
+        return "";
     return g_mfg.part_number;
 }

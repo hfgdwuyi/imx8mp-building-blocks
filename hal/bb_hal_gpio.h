@@ -18,12 +18,14 @@ typedef enum {
 } bb_gpio_edge_t;
 
 typedef struct {
-    int  num;           // Global GPIO number
-    int  chip_fd;       // fd for /dev/gpiochipX
-    int  line_fd;       // fd for requested line (from GPIO_V2_GET_LINE_IOCTL)
-    int  line_offset;   // offset within the chip
-    int  is_sysfs;      // 1 if using legacy sysfs, 0 for gpiochip
-    int  exported;      // 1 if exported (sysfs mode only)
+    int  num;              // Global GPIO number
+    int  chip_fd;          // fd for /dev/gpiochipX
+    int  line_fd;          // fd for requested line (from GPIO_V2_GET_LINE_IOCTL)
+    int  line_offset;      // offset within the chip
+    int  chip_num;         // chip index (0..7) for gpiochip v2 re-request
+    int  is_sysfs;         // 1 if using legacy sysfs, 0 for gpiochip
+    int  exported;         // 1 if exported (sysfs mode only)
+    int  direction;        // BB_GPIO_IN or BB_GPIO_OUT (gpiochip v2, for re-request)
 } bb_gpio_t;
 
 // Export and configure a GPIO pin. Returns 0 on success.

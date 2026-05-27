@@ -9,7 +9,11 @@
 // ---------------------------------------------------------------------------
 #define BB_UPDATE_MAGIC     0x42554842  // "BUHB" — Building Blocks Update
 #define BB_UPDATE_VERSION   1
-#define BB_SIG_MAX          512         // RSA-256 signature
+#define BB_SIG_MAX          512         // RSA-256 signature (PKCS#1 v1.5)
+
+// Binary header size before the tar payload
+// [4B magic][4B version][manifest][512B signature]
+#define BB_UPDATE_HEADER_SIZE (4 + 4 + sizeof(bb_update_manifest_t) + BB_SIG_MAX)
 
 // Manifest (contained in update package)
 typedef struct {

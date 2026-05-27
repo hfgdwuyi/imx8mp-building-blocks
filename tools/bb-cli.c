@@ -11,9 +11,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include "bb_json.h"
+#include "bb_persist.h"
 
 #define BUS_PATH "/run/bb-bus.sock"
 
@@ -139,13 +141,52 @@ static int cmd_led(int argc, char *argv[]) {
     return cmd_pub("/dev/bb-led/cmd", payload);
 }
 
+static int cmd_boot_log(int argc, char *argv[]) {
+    // Default: show last 10 entries
+    int count = 10;
+    if (argc >= 1) count = atoi(argv[0]);
+    if (count <= 0) count = 10;
+    if (count > 256) count = 256;
+
+    bb_persist_init(); // non-fatal if /persist not mounted
+
+    bb_boot_entry_t entries[256];
+    int n = bb_persist_boot_log_read(entries, count);
+
+    if (n == 0) {
+        printf("No boot records found.\n");
+        return 0;
+    }
+
+    printf("Boot History (last %d entries)\n", n);
+    printf("%-4s %-20s %-4s %-10s %s\n", "#", "Timestamp", "Slot", "Result", "Boot Time");
+    printf("---- -------------------- ---- ---------- ----------\n");
+
+    for (int i = 0; i < n; i++) {
+        char timebuf[32];
+        time_t ts = (time_t)entries[i].timestamp;
+        struct tm tm;
+        localtime_r(&ts, &tm);
+        strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", &tm);
+
+        double boot_s = entries[i].boot_time_ms / 1000.0;
+        printf("%-4d %-20s %-4c %-10s %8.3fs\n",
+               i + 1, timebuf,
+               entries[i].slot,
+               entries[i].success ? "OK" : "FAIL",
+               boot_s);
+    }
+    return 0;
+}
+
 static void usage(void) {
     printf("bb-cli - Building Block CLI\n\n"
            "Usage:\n"
            "  bb-cli ping                  Check bus status\n"
            "  bb-cli pub <topic> <json>    Publish message\n"
            "  bb-cli sub <topic>           Subscribe to topic\n"
-           "  bb-cli led <cmd> [k v ...]   Control LED block\n\n"
+           "  bb-cli led <cmd> [k v ...]   Control LED block\n"
+           "  bb-cli boot-log [count]      Show boot time history\n\n"
            "LED commands:\n"
            "  bb-cli led blink on_ms 200 off_ms 200 count 5\n"
            "  bb-cli led solid state on\n"
@@ -168,6 +209,9 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(argv[1], "led") == 0 && argc >= 3) {
         return cmd_led(argc - 2, argv + 2);
+    }
+    else if (strcmp(argv[1], "boot-log") == 0) {
+        return cmd_boot_log(argc - 2, argv + 2);
     }
     else {
         usage();

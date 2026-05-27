@@ -12,14 +12,134 @@
 #include <time.h>
 #include <unistd.h>
 
+// OpenSSL for RSA-256 signature (disable with -DBB_UPDATE_NO_CRYPTO)
+#ifndef BB_UPDATE_NO_CRYPTO
+#if __has_include(<openssl/evp.h>) && __has_include(<openssl/pem.h>) && __has_include(<openssl/err.h>)
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#define BB_UPDATE_HAS_CRYPTO 1
+#else
+#define BB_UPDATE_HAS_CRYPTO 0
+#endif
+#else
+#define BB_UPDATE_HAS_CRYPTO 0
+#endif
+
+// ---------------------------------------------------------------------------
+// Signature helpers
+// ---------------------------------------------------------------------------
+
+#if BB_UPDATE_HAS_CRYPTO
+static int sign_manifest(const bb_update_manifest_t *m, const char *privkey_path,
+                         uint8_t sig_out[BB_SIG_MAX])
+{
+    FILE *kf = fopen(privkey_path, "r");
+    if (!kf) {
+        fprintf(stderr, "Cannot open private key: %s\n", privkey_path);
+        return -1;
+    }
+    EVP_PKEY *pkey = PEM_read_PrivateKey(kf, NULL, NULL, NULL);
+    fclose(kf);
+    if (!pkey) {
+        fprintf(stderr, "Failed to read private key\n");
+        return -1;
+    }
+
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    if (!ctx || EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, pkey) != 1) {
+        fprintf(stderr, "DigestSignInit failed\n");
+        EVP_PKEY_free(pkey);
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    size_t sig_len = BB_SIG_MAX;
+    if (EVP_DigestSign(ctx, sig_out, &sig_len, (const uint8_t *)m, sizeof(*m)) != 1) {
+        fprintf(stderr, "Signing failed: %s\n",
+                ERR_error_string(ERR_get_error(), NULL));
+        EVP_PKEY_free(pkey);
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    // Zero-pad remaining bytes
+    if (sig_len < BB_SIG_MAX)
+        memset(sig_out + sig_len, 0, BB_SIG_MAX - sig_len);
+
+    EVP_PKEY_free(pkey);
+    EVP_MD_CTX_free(ctx);
+    return 0;
+}
+
+static int verify_signature(const bb_update_manifest_t *m,
+                            const uint8_t sig[BB_SIG_MAX],
+                            const char *pubkey_path)
+{
+    EVP_PKEY *pkey = NULL;
+
+    if (pubkey_path) {
+        FILE *kf = fopen(pubkey_path, "r");
+        if (!kf) {
+            fprintf(stderr, "Cannot open public key: %s\n", pubkey_path);
+            return -1;
+        }
+        pkey = PEM_read_PUBKEY(kf, NULL, NULL, NULL);
+        fclose(kf);
+    }
+
+    if (!pkey) {
+        fprintf(stderr, "No public key available for verification\n");
+        return -1;
+    }
+
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    if (!ctx || EVP_DigestVerifyInit(ctx, NULL, EVP_sha256(), NULL, pkey) != 1) {
+        fprintf(stderr, "DigestVerifyInit failed\n");
+        EVP_PKEY_free(pkey);
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    // Determine actual signature length (strip trailing zeros)
+    size_t sig_len = BB_SIG_MAX;
+    while (sig_len > 0 && sig[sig_len - 1] == 0)
+        sig_len--;
+
+    int rc = EVP_DigestVerify(ctx, sig, sig_len, (const uint8_t *)m, sizeof(*m));
+    EVP_PKEY_free(pkey);
+    EVP_MD_CTX_free(ctx);
+
+    if (rc == 1) return 0;
+    if (rc == 0) fprintf(stderr, "Signature verification FAILED\n");
+    else fprintf(stderr, "Signature verification error\n");
+    return -1;
+}
+#else
+static int sign_manifest(const bb_update_manifest_t *m, const char *privkey_path,
+                         uint8_t sig_out[BB_SIG_MAX])
+{
+    (void)m; (void)privkey_path;
+    memset(sig_out, 0, BB_SIG_MAX);
+    fprintf(stderr, "WARNING: Crypto disabled, package will not be signed\n");
+    return 0;
+}
+
+static int verify_signature(const bb_update_manifest_t *m,
+                            const uint8_t sig[BB_SIG_MAX],
+                            const char *pubkey_path)
+{
+    (void)m; (void)sig; (void)pubkey_path;
+    fprintf(stderr, "WARNING: Crypto disabled, skipping signature verification\n");
+    return 0;
+}
+#endif // BB_UPDATE_HAS_CRYPTO
+
 // ---------------------------------------------------------------------------
 // Verify
 // ---------------------------------------------------------------------------
 int bb_update_verify(const char *path, const char *pubkey_path)
 {
-    (void)pubkey_path; // TODO: OpenSSL RSA signature verification
-
-    // For now: check magic + parse manifest + verify checksums
     FILE *f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "Cannot open %s\n", path);
@@ -29,23 +149,46 @@ int bb_update_verify(const char *path, const char *pubkey_path)
     // Read magic
     uint32_t magic;
     if (fread(&magic, 4, 1, f) != 1 || magic != BB_UPDATE_MAGIC) {
-        fprintf(stderr, "Invalid update package (bad magic)\n");
+        fprintf(stderr, "Invalid update package (bad magic: 0x%08x)\n", magic);
         fclose(f);
         return -1;
     }
 
     // Read version
     uint32_t ver;
-    fread(&ver, 4, 1, f);
+    if (fread(&ver, 4, 1, f) != 1) {
+        fprintf(stderr, "Truncated header\n");
+        fclose(f);
+        return -1;
+    }
+    printf("Package format version: %u\n", ver);
 
     // Read manifest
     bb_update_manifest_t m;
-    fread(&m, sizeof(m), 1, f);
+    if (fread(&m, sizeof(m), 1, f) != 1) {
+        fprintf(stderr, "Truncated manifest\n");
+        fclose(f);
+        return -1;
+    }
+
+    // Read signature
+    uint8_t sig[BB_SIG_MAX];
+    if (fread(sig, BB_SIG_MAX, 1, f) != 1) {
+        fprintf(stderr, "Truncated signature\n");
+        fclose(f);
+        return -1;
+    }
     fclose(f);
 
-    printf("Update: %s → %s (slot %c)\n", m.from_version, m.to_version, m.target_slot);
+    printf("Update: %s -> %s (slot %c)\n", m.from_version, m.to_version, m.target_slot);
     printf("Product: %s\n", m.product);
-    printf("Manifest OK, signature verification: SKIPPED (no key)\n");
+
+    // Verify cryptographic signature
+    if (verify_signature(&m, sig, pubkey_path) != 0) {
+        fprintf(stderr, "Signature verification failed\n");
+        return -1;
+    }
+    printf("Signature: OK\n");
     return 0;
 }
 
@@ -77,7 +220,7 @@ int bb_update_current_slot(void)
     char slot = 'a';
     if (fgets(cmdline, sizeof(cmdline), f)) {
         char *p = strstr(cmdline, "boot_slot=");
-        if (p) slot = p[10];  // "boot_slot=X"
+        if (p) slot = p[10];
     }
     fclose(f);
     return slot;
@@ -153,23 +296,21 @@ int bb_update_install(const char *path)
     // 6. Extract package contents
     printf("Extracting package...\n");
 
-    // Create temp directory
     char tmpdir[] = "/tmp/bb-update-XXXXXX";
     if (!mkdtemp(tmpdir)) {
         fprintf(stderr, "Cannot create temp dir\n");
         return -1;
     }
 
-    // Extract .bbu as tar
-    // The .bbu is: [4B magic][4B version][manifest][tar archive with boot.tar.gz, rootfs.tar.gz, post-install.sh]
+    // Skip the full header (magic + version + manifest + signature) to reach the tar payload
     snprintf(cmd, sizeof(cmd),
              "tail -c +%zu %s | tar xzf - -C %s 2>/dev/null",
-             sizeof(uint32_t) * 2 + sizeof(bb_update_manifest_t), path, tmpdir);
-    // Note: this is a simplification. A proper implementation would parse the
-    // tar offset from the manifest structure rather than using tail.
+             (size_t)(BB_UPDATE_HEADER_SIZE + 1), path, tmpdir);
 
     if (system(cmd) != 0) {
         fprintf(stderr, "Failed to extract package\n");
+        snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
+        system(cmd);
         return -1;
     }
 
@@ -212,7 +353,6 @@ int bb_update_install(const char *path)
             snprintf(postinstall, sizeof(postinstall), "%s/post-install.sh", mnt);
             if (access(postinstall, X_OK) == 0) {
                 printf("Running post-install script...\n");
-                // Run chroot'd or via absolute path
                 snprintf(cmd, sizeof(cmd), "sh %s", postinstall);
                 system(cmd);
             }
@@ -237,7 +377,7 @@ int bb_update_install(const char *path)
              "fw_setenv boot_ok 0",
              target);
     if (system(env_cmd) != 0) {
-        fprintf(stderr, "WARNING: fw_setenv failed — manual U-Boot env setup required\n");
+        fprintf(stderr, "WARNING: fw_setenv failed -- manual U-Boot env setup required\n");
     }
 
     // 11. Log update to persist
@@ -252,7 +392,7 @@ int bb_update_install(const char *path)
 
     printf("\n========================================\n");
     printf("Update installed to slot %c\n", target);
-    printf("Version: %s → %s\n", m.from_version, m.to_version);
+    printf("Version: %s -> %s\n", m.from_version, m.to_version);
     printf("REBOOT REQUIRED to activate new version.\n");
     printf("Run: systemctl reboot\n");
     printf("========================================\n");
@@ -270,10 +410,8 @@ int bb_update_create(const char *output,
                      const char *postinstall,
                      const char *privkey_path)
 {
-    (void)privkey_path; // TODO: OpenSSL RSA signing
-
     printf("Creating update package: %s\n", output);
-    printf("Version: %s → %s\n", manifest->from_version, manifest->to_version);
+    printf("Version: %s -> %s\n", manifest->from_version, manifest->to_version);
 
     FILE *out = fopen(output, "wb");
     if (!out) {
@@ -281,46 +419,77 @@ int bb_update_create(const char *output,
         return -1;
     }
 
-    // Write header
+    // Write header (magic + version + manifest)
     uint32_t magic = BB_UPDATE_MAGIC;
     uint32_t ver = BB_UPDATE_VERSION;
     fwrite(&magic, 4, 1, out);
     fwrite(&ver, 4, 1, out);
     fwrite(manifest, sizeof(*manifest), 1, out);
 
-    // Build tar archive of payloads
-    char tmpdir[] = "/tmp/bb-update-create-XXXXXX";
-    if (!mkdtemp(tmpdir)) {
-        fclose(out);
+    // Sign the manifest and write signature
+    uint8_t sig[BB_SIG_MAX];
+    memset(sig, 0, sizeof(sig));
+    if (privkey_path) {
+        if (sign_manifest(manifest, privkey_path, sig) != 0) {
+            fprintf(stderr, "Signing failed, package not created\n");
+            fclose(out);
+            unlink(output);
+            return -1;
+        }
+    }
+    fwrite(sig, BB_SIG_MAX, 1, out);
+
+    // Close before appending tar payload via shell
+    if (fclose(out) != 0) {
+        perror("fclose header");
         return -1;
     }
 
-    // Copy payloads into tmpdir
+    // Build tar archive of payloads in a staging directory
+    char tmpdir[] = "/tmp/bb-update-create-XXXXXX";
+    if (!mkdtemp(tmpdir)) {
+        return -1;
+    }
+
     char cmd[512];
 
     if (boot_tar) {
         snprintf(cmd, sizeof(cmd), "cp %s %s/boot.tar.gz", boot_tar, tmpdir);
-        system(cmd);
+        if (system(cmd) != 0) {
+            fprintf(stderr, "Failed to copy boot.tar.gz\n");
+            snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
+            system(cmd);
+            return -1;
+        }
     }
 
     snprintf(cmd, sizeof(cmd), "cp %s %s/rootfs.tar.gz", rootfs_tar, tmpdir);
-    system(cmd);
+    if (system(cmd) != 0) {
+        fprintf(stderr, "Failed to copy rootfs.tar.gz\n");
+        snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
+        system(cmd);
+        return -1;
+    }
 
     if (postinstall && access(postinstall, R_OK) == 0) {
         snprintf(cmd, sizeof(cmd), "cp %s %s/post-install.sh", postinstall, tmpdir);
         system(cmd);
     }
 
-    // Create tar at end of output file
+    // Append tar archive payload to the output file (header already written and closed)
     snprintf(cmd, sizeof(cmd),
              "tar czf - -C %s . >> %s 2>/dev/null", tmpdir, output);
-    system(cmd);
+    int tar_rc = system(cmd);
 
-    // Cleanup
+    // Cleanup staging directory
     snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
     system(cmd);
 
-    fclose(out);
+    if (tar_rc != 0) {
+        fprintf(stderr, "Failed to create tar payload\n");
+        return -1;
+    }
+
     printf("Created: %s\n", output);
     return 0;
 }
